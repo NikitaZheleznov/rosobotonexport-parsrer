@@ -8,7 +8,7 @@ type Match struct {
 	Date       string    `json:"date"`        // Дата матча (ДД.ММ.ГГГГ)
 	Team       string    `json:"team"`        // Всегда "Рособоронэкспорт"
 	Opponent   string    `json:"opponent"`    // Команда соперника
-	SeasonID   string    `json:"season_id"`   // ID сезона
+	GameID     int       `json:"game_id"`     // ID сезона
 	SeasonName string    `json:"season_name"` // Название сезона (2021-2022 и т.д.)
 	Players    []Player  `json:"players"`     // Список игроков в заявке
 	CreatedAt  time.Time `json:"created_at"`
@@ -59,7 +59,7 @@ type APITeamBrief struct {
 
 // Player (если у вас ещё нет такой полной структуры)
 type Player struct {
-	Number   int    `json:"number"`
+	Number   int64  `json:"number"`
 	Name     string `json:"name"`
 	Position string `json:"position"`
 }

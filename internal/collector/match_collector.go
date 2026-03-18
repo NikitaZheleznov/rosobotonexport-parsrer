@@ -80,13 +80,10 @@ func (mc *MatchCollector) CollectApplications(games []models.APIGame, season mod
 		if err != nil {
 			return nil, err
 		}
-		match.Team = "Рособоронэкспорт"
-		if game.CompetitorTeam.ID != 387 {
-			match.Opponent = game.CompetitorTeam.Name
-		} else {
-			match.Opponent = game.Team.Name
-		}
-		match.SeasonID = season.ID
+		match.Team = game.Team.Name
+		match.Date = extractDate(game.Datetime)
+		match.Opponent = game.CompetitorTeam.Name
+		match.GameID = game.ID
 		match.SeasonName = season.Name
 		match.CreatedAt = time.Now()
 
@@ -95,6 +92,17 @@ func (mc *MatchCollector) CollectApplications(games []models.APIGame, season mod
 		}
 	}
 	return mc.matches, nil
+}
+
+func extractDate(dateTimeStr string) string {
+	// Парсим строку в time.Time
+	t, err := time.Parse(time.RFC3339, dateTimeStr)
+	if err != nil {
+		return ""
+	}
+
+	// Возвращаем только дату в нужном формате
+	return t.Format("02.01.2006")
 }
 
 func (mc *MatchCollector) GetGameApplicationByID(game models.APIGame) (*models.Match, error) {
@@ -149,7 +157,7 @@ func ExtractSimplePlayers(doc *goquery.Document) ([]models.Player, error) {
 				// Извлекаем номер
 				reNum := regexp.MustCompile(`№(\d+)`)
 				if matches := reNum.FindStringSubmatch(text); len(matches) >= 2 {
-					player.Number, _ = strconv.Atoi(matches[1])
+					player.Number, _ = strconv.ParseInt(matches[1], 10, 64)
 				}
 
 				// Извлекаем позицию
@@ -159,6 +167,8 @@ func ExtractSimplePlayers(doc *goquery.Document) ([]models.Player, error) {
 					player.Position = "Защитник"
 				} else if strings.Contains(text, "Вр.") {
 					player.Position = "Вратарь"
+				} else {
+					player.Position = ""
 				}
 
 				// Извлекаем имя
@@ -168,7 +178,7 @@ func ExtractSimplePlayers(doc *goquery.Document) ([]models.Player, error) {
 					player.Name = strings.TrimSpace(matches[1])
 				}
 
-				if player.Number > 0 && player.Name != "" {
+				if player.Number > 0 && player.Name != "" && player.Position != "" {
 					players = append(players, player)
 				}
 			})

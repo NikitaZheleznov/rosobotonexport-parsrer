@@ -4,16 +4,13 @@ import (
 	"log"
 	"rosoboronexport-parser/internal/collector"
 	"rosoboronexport-parser/internal/config"
-	"rosoboronexport-parser/internal/models"
 	"rosoboronexport-parser/internal/storage"
 )
 
 func main() {
-
 	cfg := config.DefaultConfig()
 	matchCollector := collector.NewMatchCollector(cfg.RequestDelay)
 	exporter := storage.NewExcelExporter(cfg.OutputDir)
-	allSeasonsData := make(map[string][]models.Match)
 
 	// Обрабатываем каждый сезон
 	for _, season := range cfg.Seasons {
@@ -35,14 +32,12 @@ func main() {
 			continue
 		}
 
-		allSeasonsData[season.Name] = matches
 		log.Printf("Сезон %s обработан, собрано %d матчей", season.Name, len(matches))
-	}
 
-	// Шаг 3: Экспортируем все данные в Excel
-	if err := exporter.ExportAllSeasons(allSeasonsData); err != nil {
-		log.Fatalf("Ошибка экспорта в Excel: %v", err)
+		// Шаг 3: Экспортируем все данные в Excel
+		if err := exporter.ExportAllSeasons(season.Name, matches); err != nil {
+			log.Fatalf("Ошибка экспорта в Excel: %v", err)
+		}
 	}
-
 	log.Println("Готово! Все файлы сохранены в директории", cfg.OutputDir)
 }
