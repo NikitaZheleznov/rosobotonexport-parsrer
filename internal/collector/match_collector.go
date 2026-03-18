@@ -75,6 +75,7 @@ func (mc *MatchCollector) FetchGames(seasonID string) ([]models.APIGame, error) 
 }
 
 func (mc *MatchCollector) CollectApplications(games []models.APIGame, season models.Season) ([]models.Match, error) {
+	mc.matches = make([]models.Match, 0)
 	for _, game := range games {
 		match, err := mc.GetGameApplicationByID(game)
 		if err != nil {
@@ -106,7 +107,7 @@ func extractDate(dateTimeStr string) string {
 }
 
 func (mc *MatchCollector) GetGameApplicationByID(game models.APIGame) (*models.Match, error) {
-	url := fmt.Sprintf("%s/tournament_hockey_game/%d/game_application_file/?file_type=html&application_type=game_user", mc.baseURL, game.ID)
+	url := fmt.Sprintf("%s/tournament_hockey_game/%d/game_application_file/?file_type=html&application_type=tournament_user", mc.baseURL, game.ID)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка создания запроса: %w", err)
