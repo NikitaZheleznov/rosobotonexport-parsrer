@@ -9,34 +9,27 @@ import (
 )
 
 func main() {
-	// Загружаем конфигурацию
+
 	cfg := config.DefaultConfig()
-
-	// Создаём коллекторы
 	matchCollector := collector.NewMatchCollector(cfg.RequestDelay)
-	appCollector := collector.NewApplicationCollector(cfg.Parallelism, cfg.RequestDelay)
-
-	// Создаём экспортёр
 	exporter := storage.NewExcelExporter(cfg.OutputDir)
-
-	// Для хранения результатов всех сезонов
-	allSeasonsData := make(map[string][]models.Match) // Здесь используется models.Match
+	allSeasonsData := make(map[string][]models.Match)
 
 	// Обрабатываем каждый сезон
 	for _, season := range cfg.Seasons {
 		log.Printf("Обработка сезона %s (ID: %s)", season.Name, season.ID)
 
 		// Шаг 1: Собираем ID всех матчей за сезон
-		matchIDs, err := matchCollector.CollectMatchIDs(season)
+		games, err := matchCollector.FetchGames(season.ID)
 		if err != nil {
 			log.Printf("Ошибка сбора ID матчей для сезона %s: %v", season.Name, err)
 			continue
 		}
 
-		log.Printf("Найдено %d матчей для сезона %s", len(matchIDs), season.Name)
+		log.Printf("Найдено %d матчей для сезона %s", len(games), season.Name)
 
 		// Шаг 2: Собираем заявки по каждому матчу
-		matches, err := appCollector.CollectApplications(matchIDs, season)
+		matches, err := matchCollector.CollectApplications(games, season)
 		if err != nil {
 			log.Printf("Ошибка сбора заявок для сезона %s: %v", season.Name, err)
 			continue

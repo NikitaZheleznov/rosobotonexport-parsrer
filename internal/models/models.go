@@ -2,18 +2,6 @@ package models
 
 import "time"
 
-// Player представляет игрока в заявке
-type Player struct {
-	Number      int    `json:"number"`       // Номер игрока
-	Name        string `json:"name"`         // Полное имя
-	Position    string `json:"position"`     // Позиция (Нападающий/Защитник/Вратарь)
-	BirthDate   string `json:"birth_date"`   // Дата рождения (опционально)
-	IsCaptain   bool   `json:"is_captain"`   // Капитан?
-	IsAssistant bool   `json:"is_assistant"` // Ассистент?
-	Index       string `json:"index"`        // Индекс игрока (если есть)
-	Status      string `json:"status"`       // Статус (допущен/не допущен)
-}
-
 // Match представляет матч с заявкой
 type Match struct {
 	ID         string    `json:"id"`          // ID матча
@@ -28,9 +16,10 @@ type Match struct {
 
 // Season представляет сезон с его ID
 type Season struct {
-	Name string // "2021-2022"
-	ID   string // "14", "15" и т.д.
-	URL  string // Полный URL страницы команды за сезон
+	Name       string
+	ID         string
+	Tournament string
+	URL        string
 }
 
 // ExcelRow представляет строку для Excel-файла
@@ -42,4 +31,35 @@ type ExcelRow struct {
 	PlayerNumber int    `col:"№ игрока"`   // Номер игрока
 	PlayerName   string `col:"Имя игрока"` // Фамилия Имя
 	Position     string `col:"Позиция"`    // Нападающий/Защитник/Вратарь
+}
+
+// APIGame описывает один матч из массива ответа
+type APIGame struct {
+	ID             int          `json:"id"`
+	Datetime       string       `json:"datetime"`
+	Team           APITeamBrief `json:"team"`
+	CompetitorTeam APITeamBrief `json:"competitor_team"`
+}
+
+type APITeamBrief struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// MatchApplication представляет полную заявку на матч
+// type MatchApplication struct {
+// 	GameID   string   `json:"game_id"`
+// 	HomeTeam string   `json:"home_team"` // Название команды хозяев
+// 	AwayTeam string   `json:"away_team"` // Название команды гостей
+// 	Players  []Player `json:"players"`   // Список игроков ВАШЕЙ команды
+// 	GameDate string   `json:"game_date"`
+// 	GameTime string   `json:"game_time"`
+// 	Location string   `json:"location"`
+// }
+
+// Player (если у вас ещё нет такой полной структуры)
+type Player struct {
+	Number   int    `json:"number"`
+	Name     string `json:"name"`
+	Position string `json:"position"`
 }

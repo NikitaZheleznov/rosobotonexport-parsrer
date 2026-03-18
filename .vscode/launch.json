@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Запуск парсера",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "C:\\Users\\Nikita\\GolandProjects\\rosoboronexport-parser\\cmd\\parser\\main.go",
+        }
+    ]
+}

@@ -1,65 +1,198 @@
 package collector
 
 import (
+	"encoding/json"
 	"fmt"
-	"rosoboronexport-parser/internal/models"
-	"rosoboronexport-parser/internal/parser"
+	"io"
+	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
-	"github.com/gocolly/colly"
+	"rosoboronexport-parser/internal/models"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
+// MatchCollector собирает данные о матчах через API
 type MatchCollector struct {
-	collector *colly.Collector
-	parser    *parser.MatchParser
+	client  *http.Client
+	baseURL string
+	teamID  int
+	matches []models.Match
 }
 
-func NewMatchCollector(delay time.Duration) *MatchCollector {
-	c := colly.NewCollector(
-		colly.UserAgent("Mozilla/5.0"),
-		colly.AllowedDomains("hltr.ru"),
-	)
-
-	// Настройка задержек
-	c.Limit(&colly.LimitRule{
-		DomainGlob:  "*hltr.ru*",
-		Delay:       delay,
-		RandomDelay: 2 * time.Second,
-	})
+// NewMatchCollector создает новый экземпляр MatchCollector
+func NewMatchCollector(timeout time.Duration) *MatchCollector {
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
 
 	return &MatchCollector{
-		collector: c,
-		parser:    parser.NewMatchParser(),
+		client: &http.Client{
+			Timeout: timeout,
+		},
+		baseURL: "https://mtgame.ru/api/v1",
+		teamID:  387,
+		matches: make([]models.Match, 0),
 	}
 }
 
-// CollectMatchIDs собирает ID всех матчей команды за указанный сезон
-func (mc *MatchCollector) CollectMatchIDs(season models.Season) ([]string, error) {
-	url := fmt.Sprintf("%s/teams/%s?season_id=%s",
-		"https://hltr.ru", "387", season.ID)
+// fetchGames - внутренняя функция для запроса к API
+func (mc *MatchCollector) FetchGames(seasonID string) ([]models.APIGame, error) {
+	url := fmt.Sprintf("%s/tournament_season/%s/games/?team_id=%d", mc.baseURL, seasonID, mc.teamID)
 
-	var matchIDs []string
-	var err error
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
-	// Обработчик страницы с матчами
-	mc.collector.OnHTML("div.team-matches", func(e *colly.HTMLElement) {
-		// Парсим все ссылки на матчи
-		ids, parseErr := mc.parser.ExtractMatchIDs(e)
-		if parseErr != nil {
-			err = parseErr
-			return
+	resp, err := mc.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API вернул статус %d: %s", resp.StatusCode, string(body))
+	}
+
+	var games []models.APIGame
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(body, &games); err != nil {
+		return nil, fmt.Errorf("ошибка парсинга JSON: %w", err)
+	}
+
+	return games, nil
+}
+
+func (mc *MatchCollector) CollectApplications(games []models.APIGame, season models.Season) ([]models.Match, error) {
+	for _, game := range games {
+		match, err := mc.GetGameApplicationByID(game)
+		if err != nil {
+			return nil, err
 		}
-		matchIDs = append(matchIDs, ids...)
+		match.Team = "Рособоронэкспорт"
+		if game.CompetitorTeam.ID != 387 {
+			match.Opponent = game.CompetitorTeam.Name
+		} else {
+			match.Opponent = game.Team.Name
+		}
+		match.SeasonID = season.ID
+		match.SeasonName = season.Name
+		match.CreatedAt = time.Now()
+
+		if match != nil {
+			mc.matches = append(mc.matches, *match)
+		}
+	}
+	return mc.matches, nil
+}
+
+func (mc *MatchCollector) GetGameApplicationByID(game models.APIGame) (*models.Match, error) {
+	url := fmt.Sprintf("%s/tournament_hockey_game/%d/game_application_file/?file_type=html&application_type=game_user", mc.baseURL, game.ID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка создания запроса: %w", err)
+	}
+	// Устанавливаем ВСЕ заголовки из браузера
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
+	req.Header.Set("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
+	req.Header.Set("Cache-Control", "max-age=0")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Host", "mtgame.ru")
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Site", "none")
+	req.Header.Set("Sec-Fetch-User", "?1")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36")
+	req.Header.Set("sec-ch-ua", `"Chromium";v="146", "Not-A.Brand";v="24", "Google Chrome";v="146"`)
+	req.Header.Set("sec-ch-ua-mobile", "?0")
+	req.Header.Set("sec-ch-ua-platform", "Windows")
+
+	resp, err := mc.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выполнения запроса: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API вернул статус %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Парсим HTML с помощью goquery
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга HTML: %w", err)
+	}
+
+	match := &models.Match{
+		ID: strconv.Itoa(game.ID),
+	}
+
+	match.Players, err = ExtractSimplePlayers(doc.Text())
+	if err != nil {
+		return nil, err
+	}
+
+	return match, nil
+}
+
+func ExtractSimplePlayers(htmlContent string) ([]models.Player, error) {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(htmlContent))
+	if err != nil {
+		return nil, err
+	}
+
+	var players []models.Player
+
+	// Находим секцию Рособоронэкспорт
+	doc.Find("div.page").Each(func(i int, page *goquery.Selection) {
+		if strings.Contains(page.Text(), "Рособоронэкспорт") {
+			// Парсим всех игроков в этой секции
+			page.Find("td[style*='position: relative']").Each(func(j int, td *goquery.Selection) {
+				player := models.Player{}
+				text := td.Text()
+
+				// Извлекаем номер
+				reNum := regexp.MustCompile(`№(\d+)`)
+				if matches := reNum.FindStringSubmatch(text); len(matches) >= 2 {
+					player.Number, _ = strconv.Atoi(matches[1])
+				}
+
+				// Извлекаем позицию
+				if strings.Contains(text, "Нап.") {
+					player.Position = "Нападающий"
+				} else if strings.Contains(text, "Защ.") {
+					player.Position = "Защитник"
+				} else if strings.Contains(text, "Вр.") {
+					player.Position = "Вратарь"
+				}
+
+				// Извлекаем имя
+				html, _ := td.Html()
+				reName := regexp.MustCompile(`<br\s*/?>\s*([^<]+?)\s*<br\s*/?>`)
+				if matches := reName.FindStringSubmatch(html); len(matches) >= 2 {
+					player.Name = strings.TrimSpace(matches[1])
+				}
+
+				if player.Number > 0 && player.Name != "" {
+					players = append(players, player)
+				}
+			})
+		}
 	})
 
-	// Обработчик ошибок
-	mc.collector.OnError(func(_ *colly.Response, rErr error) {
-		err = rErr
-	})
-
-	// Запускаем сбор
-	mc.collector.Visit(url)
-	mc.collector.Wait()
-
-	return matchIDs, err
+	return players, nil
 }
