@@ -107,7 +107,7 @@ func extractDate(dateTimeStr string) string {
 }
 
 func (mc *MatchCollector) GetGameApplicationByID(game models.APIGame) (*models.Match, error) {
-	url := fmt.Sprintf("%s/tournament_hockey_game/%d/game_application_file/?file_type=html&application_type=tournament_user", mc.baseURL, game.ID)
+	url := fmt.Sprintf("%s/tournament_hockey_game/%d/game_protocol/?file_type=html", mc.baseURL, game.ID)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка создания запроса: %w", err)
@@ -136,7 +136,7 @@ func (mc *MatchCollector) GetGameApplicationByID(game models.APIGame) (*models.M
 		ID: strconv.Itoa(game.ID),
 	}
 
-	match.Players, err = ExtractSimplePlayers(doc)
+	match.Players, err = ParseGameProtocol(doc)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func ExtractSimplePlayers(doc *goquery.Document) ([]models.Player, error) {
 	var players []models.Player
 
 	// Находим секцию Рособоронэкспорт
-	doc.Find("div.page").Each(func(i int, page *goquery.Selection) {
+	doc.Find("tr.border-top").Each(func(i int, page *goquery.Selection) {
 		if strings.Contains(page.Text(), "Технодинамика") {
 			// Парсим всех игроков в этой секции
 			page.Find("td[style*='position: relative']").Each(func(j int, td *goquery.Selection) {
@@ -187,4 +187,108 @@ func ExtractSimplePlayers(doc *goquery.Document) ([]models.Player, error) {
 	})
 
 	return players, nil
+}
+
+func ParseGameProtocol(doc *goquery.Document) ([]models.Player, error) {
+	var players []models.Player
+	doc.Find("tr.border-top.bold").Each(func(i int, row *goquery.Selection) {
+		// Ищем ячейку с названием команды
+		cell := row.Find("td").First()
+		if cell.Length() == 0 {
+			return
+		}
+
+		cellText := strings.TrimSpace(cell.Text())
+
+		// Проверяем, содержит ли ячейка название команды
+		if strings.Contains(cellText, "Технодинамика") {
+			players = parsePlayersFromTable(row)
+		}
+	})
+
+	return players, nil
+}
+
+func parsePlayersFromTable(headerRow *goquery.Selection) []models.Player {
+	var players []models.Player
+
+	// Ищем следующую строку с заголовками (содержит "№", "Фамилия, Имя", "Пз", "Иг")
+	var headerRowFound *goquery.Selection
+	nextRow := headerRow.Next()
+	for nextRow.Length() > 0 {
+		text := nextRow.Text()
+		if strings.Contains(text, "№") && strings.Contains(text, "Фамилия, Имя") {
+			headerRowFound = nextRow
+			break
+		}
+		nextRow = nextRow.Next()
+	}
+
+	if headerRowFound == nil {
+		return players
+	}
+
+	// Начинаем парсить строки с игроками после заголовка
+	currentRow := headerRowFound.Next()
+
+	for currentRow.Length() > 0 {
+		// Проверяем, не достигли ли мы следующей команды
+		rowText := currentRow.Text()
+		if strings.Contains(rowText, "Команда \"") {
+			break
+		}
+
+		// Проверяем, не достигли ли строки с тренером
+		if strings.Contains(rowText, "Тренер:") {
+			break
+		}
+
+		// Парсим игрока
+		player := parsePlayerRow(currentRow)
+		if player.Number > 0 && player.Name != "" {
+			players = append(players, player)
+		}
+
+		currentRow = currentRow.Next()
+	}
+
+	return players
+}
+
+// parsePlayerRow парсит одну строку с игроком
+func parsePlayerRow(row *goquery.Selection) models.Player {
+	player := models.Player{}
+
+	// Находим все ячейки в строке
+	cells := row.Find("td")
+	if cells.Length() < 4 {
+		return player
+	}
+
+	// Номер игрока (первая ячейка)
+	numCell := cells.Eq(0)
+	numText := strings.TrimSpace(numCell.Text())
+	if num, err := strconv.ParseInt(numText, 10, 64); err == nil {
+		player.Number = num
+	}
+
+	// Имя игрока (вторая ячейка с colspan="5")
+	nameCell := cells.Eq(1)
+	player.Name = strings.TrimSpace(nameCell.Text())
+
+	// Позиция (третья ячейка)
+	posCell := cells.Eq(2)
+	position := strings.TrimSpace(posCell.Text())
+	switch position {
+	case "Вр.":
+		player.Position = "Вратарь"
+	case "Защ.":
+		player.Position = "Защитник"
+	case "Нап.":
+		player.Position = "Нападающий"
+	default:
+		player.Position = position
+	}
+
+	return player
 }
