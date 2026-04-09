@@ -20,15 +20,15 @@ func NewExcelExporter(outputDir string) *ExcelExporter {
 	return &ExcelExporter{outputDir: outputDir}
 }
 
-func (e *ExcelExporter) ExportAllSeasons(seasonName string, matches []models.Match) error {
-	if err := e.ExportMatchesToExcel(seasonName, matches); err != nil {
+func (e *ExcelExporter) ExportAllSeasons(teamName, seasonName string, matches []models.Match) error {
+	if err := e.ExportMatchesToExcel(teamName, seasonName, matches); err != nil {
 		return fmt.Errorf("ошибка экспорта сезона %s: %w", seasonName, err)
 	}
 	return nil
 }
 
-func (e *ExcelExporter) ExportMatchesToExcel(seasonName string, matches []models.Match) error {
-	filename := filepath.Join(e.outputDir, fmt.Sprintf("Список_всех_составов_на_игры_сезона_%s.xlsx", seasonName))
+func (e *ExcelExporter) ExportMatchesToExcel(teamName, seasonName string, matches []models.Match) error {
+	filename := filepath.Join(e.outputDir, fmt.Sprintf("Список_всех_составов_на_игры_сезона_%s_%s.xlsx", seasonName, teamName))
 
 	f := excelize.NewFile()
 	defer f.Close()

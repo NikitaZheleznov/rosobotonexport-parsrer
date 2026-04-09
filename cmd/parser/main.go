@@ -35,7 +35,7 @@ func main() {
 		log.Printf("Сезон %s обработан, собрано %d матчей", season.Name, len(matches))
 
 		// Шаг 3: Экспортируем все данные в Excel
-		if err := exporter.ExportAllSeasons(season.Name, matches); err != nil {
+		if err := exporter.ExportAllSeasons("технодинамика", season.Name, matches); err != nil {
 			log.Fatalf("Ошибка экспорта в Excel: %v", err)
 		}
 	}

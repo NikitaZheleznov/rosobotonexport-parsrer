@@ -34,7 +34,7 @@ func NewMatchCollector(timeout time.Duration) *MatchCollector {
 			Timeout: timeout,
 		},
 		baseURL: "https://mtgame.ru/api/v1",
-		teamID:  387,
+		teamID:  2771,
 		matches: make([]models.Match, 0),
 	}
 }
@@ -149,7 +149,7 @@ func ExtractSimplePlayers(doc *goquery.Document) ([]models.Player, error) {
 
 	// Находим секцию Рособоронэкспорт
 	doc.Find("div.page").Each(func(i int, page *goquery.Selection) {
-		if strings.Contains(page.Text(), "Рособоронэкспорт") {
+		if strings.Contains(page.Text(), "Технодинамика") {
 			// Парсим всех игроков в этой секции
 			page.Find("td[style*='position: relative']").Each(func(j int, td *goquery.Selection) {
 				player := models.Player{}

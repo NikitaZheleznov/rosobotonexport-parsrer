@@ -7,7 +7,7 @@ import (
 
 type Config struct {
 	BaseURL      string          // Базовый URL сайта
-	TeamID       string          // ID команды (387)
+	TeamID       string          // ID команды
 	Seasons      []models.Season // Список сезонов для парсинга
 	RequestDelay time.Duration   // Задержка между запросами
 	Parallelism  int             // Количество параллельных запросов
@@ -18,9 +18,9 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		BaseURL: "https://hltr.ru",
-		TeamID:  "387",
+		TeamID:  "2771",
 		Seasons: []models.Season{
-			{Name: "2021-2022", ID: "18", Tournament: "191"},
+			// {Name: "2021-2022", ID: "18", Tournament: "191"},
 			{Name: "2022-2023", ID: "31", Tournament: "328"},
 			{Name: "2023-2024", ID: "42", Tournament: "934"},
 			{Name: "2024-2025", ID: "63", Tournament: "1549"},
